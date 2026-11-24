@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HookSum AI — تلخيص الفيديو بهوك ومشهد جذاب</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #131a2a;
+      --border: #232f4b;
+      --primary: #6366f1;
+      --accent: #f43f5e;
+      --success: #10b981;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.7; }
+
+    .container { max-width: 1120px; margin: 0 auto; padding: 28px 18px 60px; }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .badge-top {
+      display: inline-block;
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      padding: 4px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+      font-weight: 900;
+      background: linear-gradient(135deg, #fff 20%, #818cf8 70%, #fb7185 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    header p { color: var(--muted); max-width: 640px; margin: 0 auto; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.35);
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 780px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 0.95rem; }
+    input[type="text"], input[type="password"], input[type="file"] {
+      width: 100%;
+      background: #0d1322;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--primary); }
+
+    .upload-zone {
+      border: 2px dashed #334155;
+      border-radius: 14px;
+      padding: 24px;
+      text-align: center;
+      background: #0d1322;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .upload-zone:hover { border-color: var(--primary); background: #10182b; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+      align-items: center;
+    }
+
+    .btn {
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), #4f46e5); color: #fff; }
+    .btn-accent { background: linear-gradient(135deg, var(--accent), #e11d48); color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-success { background: var(--success); color: #042f2e; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .loader {
+      display: none;
+      text-align: center;
+      padding: 28px;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 4px solid rgba(99,102,241,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .results { display: none; }
+
+    /* حاوية مشغل الهوك */
+    .player-wrapper {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #000;
+      border: 1px solid var(--border);
+    }
+    video, iframe {
+      width: 100%;
+      max-height: 480px;
+      display: block;
+      aspect-ratio: 16 / 9;
+    }
+
+    .hook-overlay {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      left: 16px;
+      pointer-events: none;
+      display: none;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      z-index: 10;
+    }
+    .hook-overlay.active { display: flex; animation: popIn 0.4s ease; }
+    @keyframes popIn {
+      from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .hook-pill {
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.95rem;
+      box-shadow: 0 8px 25px rgba(244, 63, 94, 0.45);
+      max-width: 80%;
+    }
+    .mode-pill {
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .hook-box {
+      background: linear-gradient(135deg, rgba(244,63,94,0.12), rgba(99,102,241,0.12));
+      border: 1px solid rgba(244,63,94,0.35);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .hook-box h3 { color: #fb7185; margin-bottom: 6px; font-size: 1.15rem; }
+
+    .clip-item {
+      background: #0d1322;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.15s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+    .clip-item:hover { border-color: var(--primary); transform: translateX(-3px); }
+    .clip-item.playing { border-color: var(--accent); background: rgba(244,63,94,0.08); }
+    .time-badge {
+      background: rgba(99, 102, 241, 0.18);
+      color: #a5b4fc;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
+      direction: ltr;
+    }
+
+    .error-msg {
+      display: none;
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fecdd3;
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-top">⚡ تلخيص ذكي + مشهد هوك يخطف الأنظار</div>
+      <h1>مُلخّص الفيديو بالهوك (HookSum AI)</h1>
+      <p>ارفع الفيديو الطويل أو ضع رابط يوتيوب، وسيستخرج الذكاء الاصطناعي أقوى مشهد جاذب للانتباه ليضعه في البداية ثم يلخص لك باقي الفيديو.</p>
+    </header>
+
+    <!-- قسم الإدخال -->
+    <section class="card">
+      <form id="analyzeForm">
+        <div class="grid-2">
+          <div>
+            <label>1. رفع ملف فيديو طويل (MP4 / MOV / WebM)</label>
+            <div class="upload-zone" onclick="document.getElementById('videoFile').click()">
+              <div id="fileLabel">📁 اضغط هنا لاختيار فيديو من جهازك</div>
+              <input type="file" id="videoFile" accept="video/*" style="display:none" />
+            </div>
+          </div>
+
+          <div>
+            <label>أو 2. رابط فيديو يوتيوب (YouTube URL)</label>
+            <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
+            <label style="margin-top: 14px;">مفتاح Gemini API (اختياري إذا كان مضبوطاً في السيرفر)</label>
+            <input type="password" id="apiKey" placeholder="AIzaSy..." />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="submitBtn">🚀 تحليل الفيديو وإنشاء الهوك والتلخيص</button>
+          <button type="button" class="btn btn-outline" id="demoBtn">🎬 تشغيل عرض تجريبي (Demo)</button>
+        </div>
+
+        <div class="error-msg" id="errorMsg"></div>
+      </form>
+
+      <div class="loader" id="loader">
+        <div class="spinner"></div>
+        <p style="font-weight:700;">جاري مشاهدة الفيديو واستخراج مشهد الهوك والتلخيص...</p>
+        <p style="color:var(--muted); font-size:0.9rem;">قد يستغرق الأمر من 15 إلى 60 ثانية حسب طول الفيديو.</p>
+      </div>
+    </section>
+
+    <!-- قسم النتائج -->
+    <section class="results" id="resultsSection">
+      <div class="card">
+        <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px;">
+          <h2 id="resTitle" style="font-size:1.35rem;">عنوان الفيديو</h2>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-accent" id="playHookFirstBtn">🔥 تشغيل التلخيص بدءاً من الهوك</button>
+            <a id="downloadBtn" class="btn btn-success" style="display:none;" download="hook_summary.mp4">⬇️ تحميل الفيديو الممنتج</a>
+          </div>
+        </div>
+
+        <!-- مشغل الفيديو الذكي -->
+        <div class="player-wrapper" id="playerWrapper">
+          <div class="hook-overlay" id="hookOverlay">
+            <div class="hook-pill" id="hookOverlayText">🔥 الهوك الافتتاحي</div>
+            <div class="mode-pill" id="stageBadge">مشهد جذب الانتباه</div>
+          </div>
+          <video id="videoPlayer" controls playsinline></video>
+          <div id="ytContainer" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- بطاقة الهوك والملخص النصي -->
+        <div class="card">
+          <div class="hook-box">
+            <h3>🔥 الهوك ومشهد البداية الجاذب</h3>
+            <p id="hookCaptionText" style="font-weight:700; font-size:1.05rem; margin-bottom:6px;"></p>
+            <p id="hookReasonText" style="color:var(--muted); font-size:0.9rem;"></p>
+            <div style="margin-top:10px;">
+              <span class="time-badge" id="hookTimeBadge">00:00 - 00:00</span>
+            </div>
+          </div>
+
+          <h3 style="margin-bottom:8px;">📝 التلخيص الشامل للفيديو</h3>
+          <p id="overallSummary" style="color:#cbd5e1; white-space:pre-line;"></p>
+        </div>
+
+        <!-- قائمة مشاهد التلخيص -->
+        <div class="card">
+          <h3 style="margin-bottom:14px;">🎞️ مشاهد التلخيص (اضغط للانتقال للمشهد)</h3>
+          <div id="clipsList"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const videoFileInput = document.getElementById('videoFile');
+    const fileLabel = document.getElementById('fileLabel');
+    const analyzeForm = document.getElementById('analyzeForm');
+    const loader = document.getElementById('loader');
+    const errorMsg = document.getElementById('errorMsg');
+    const resultsSection = document.getElementById('resultsSection');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const ytContainer = document.getElementById('ytContainer');
+    const hookOverlay = document.getElementById('hookOverlay');
+    const hookOverlayText = document.getElementById('hookOverlayText');
+    const stageBadge = document.getElementById('stageBadge');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentAnalysis = null;
+    let playlistQueue = [];
+    let currentQueueIndex = -1;
+    let isAutoSequence = false;
+
+    videoFileInput.addEventListener('change', () => {
+      if (videoFileInput.files.length > 0) {
+        fileLabel.textContent = `✅ تم اختيار: ${videoFileInput.files[0].name}`;
+      }
+    });
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = Math.floor(sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+    }
+
+    function hideError() {
+      errorMsg.style.display = 'none';
+    }
+
+    function extractYouTubeId(url) {
+      const match = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+      return match ? match[1] : null;
+    }
+
+    // تشغيل قائمة المشاهد: الهوك أولاً ثم مشاهد التلخيص
+    function startHookFirstSequence() {
+      if (!currentAnalysis) return;
+      if (videoPlayer.style.display === 'none') return;
+
+      playlistQueue = [
+        {
+          type: 'hook',
+          start: currentAnalysis.hook_start_seconds,
+          end: currentAnalysis.hook_end_seconds,
+          label: `🔥 ${currentAnalysis.hook_caption}`,
+          badge: 'مشهد الهوك (البداية)'
+        },
+        ...currentAnalysis.key_clips.map((c, idx) => ({
+          type: 'summary',
+          start: c.start_seconds,
+          end: c.end_seconds,
+          label: `📌 ${c.title}`,
+          badge: `ملخص (${idx + 1}/${currentAnalysis.key_clips.length})`,
+          clipIndex: idx
+        }))
+      ];
+
+      isAutoSequence = true;
+      playQueueStep(0);
+    }
+
+    function playQueueStep(index) {
+      if (index >= playlistQueue.length) {
+        isAutoSequence = false;
+        videoPlayer.pause();
+        hookOverlay.classList.remove('active');
+        highlightClip(-1);
+        return;
+      }
+
+      currentQueueIndex = index;
+      const item = playlistQueue[index];
+      videoPlayer.currentTime = item.start;
+      videoPlayer.play().catch(() => {});
+
+      hookOverlayText.textContent = item.label;
+      stageBadge.textContent = item.badge;
+      hookOverlay.classList.add('active');
+
+      highlightClip(item.type === 'summary' ? item.clipIndex : -1);
+    }
+
+    function highlightClip(idx) {
+      document.querySelectorAll('.clip-item').forEach((el, i) => {
+        el.classList.toggle('playing', i === idx);
+      });
+    }
+
+    videoPlayer.addEventListener('timeupdate', () => {
+      if (!isAutoSequence || currentQueueIndex < 0 || currentQueueIndex >= playlistQueue.length) return;
+      const currentItem = playlistQueue[currentQueueIndex];
+      if (videoPlayer.currentTime >= currentItem.end) {
+        playQueueStep(currentQueueIndex + 1);
+      }
+    });
+
+    function renderResults(data) {
+      const a = data.analysis;
+      currentAnalysis = a;
+      resultsSection.style.display = 'block';
+
+      document.getElementById('resTitle').textContent = a.video_title;
+      document.getElementById('hookCaptionText').textContent = `«${a.hook_caption}»`;
+      document.getElementById('hookReasonText').textContent = a.hook_reason;
+      document.getElementById('hookTimeBadge').textContent = `${formatTime(a.hook_start_seconds)} → ${formatTime(a.hook_end_seconds)}`;
+      document.getElementById('overallSummary').textContent = a.overall_summary;
+
+      if (data.exported_video_url) {
+        downloadBtn.href = data.exported_video_url;
+        downloadBtn.style.display = 'inline-flex';
+      } else {
+        downloadBtn.style.display = 'none';
+      }
+
+      const clipsList = document.getElementById('clipsList');
+      clipsList.innerHTML = '';
+      a.key_clips.forEach((clip, idx) => {
+        const div = document.createElement('div');
+        div.className = 'clip-item';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700; margin-bottom:2px;">${idx + 1}. ${clip.title}</div>
+            <div style="font-size:0.88rem; color:var(--muted);">${clip.description}</div>
+          </div>
+          <span class="time-badge">${formatTime(clip.start_seconds)} - ${formatTime(clip.end_seconds)}</span>
+        `;
+        div.onclick = () => {
+          if (videoPlayer.style.display !== 'none') {
+            isAutoSequence = false;
+            videoPlayer.currentTime = clip.start_seconds;
+            videoPlayer.play();
+            hookOverlayText.textContent = `📌 ${clip.title}`;
+            stageBadge.textContent = `مشهد ${idx + 1}`;
+            hookOverlay.classList.add('active');
+            highlightClip(idx);
+          } else if (data.youtube_url) {
+            const vidId = extractYouTubeId(data.youtube_url);
+            if (vidId) {
+              ytContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${vidId}?start=${Math.floor(clip.start_seconds)}&autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            }
+          }
+        };
+        clipsList.appendChild(div);
+      });
+
+      if (data.source_type === 'local') {
+        ytContainer.style.display = 'none';
+        videoPlayer.style.display = 'block';
+        videoPlayer.src = data.video_url;
+        videoPlayer.onloadedmetadata = () => startHookFirstSequence();
+      } else {
+        videoPlayer.style.display = 'none';
+        ytContainer.style.display = 'block';
+        const vidId = extractYouTubeId(data.youtube_url || '');
+        if (vidId) {
+          ytContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${vidId}?start=${Math.floor(a.hook_start_seconds)}&autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+          hookOverlayText.textContent = `🔥 ${a.hook_caption}`;
+          stageBadge.textContent = 'البداية من الهوك';
+          hookOverlay.classList.add('active');
+        }
+      }
+
+      resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    document.getElementById('playHookFirstBtn').addEventListener('click', startHookFirstSequence);
+
+    // إرسال الطلب للسيرفر
+    analyzeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const formData = new FormData();
+      if (videoFileInput.files.length > 0) {
+        formData.append('file', videoFileInput.files[0]);
+      }
+      const ytUrl = document.getElementById('youtubeUrl').value.trim();
+      if (ytUrl) formData.append('youtube_url', ytUrl);
+
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (apiKey) formData.append('api_key', apiKey);
+
+      if (!videoFileInput.files.length && !ytUrl) {
+        return showError('يرجى رفع ملف فيديو أو إدخال رابط يوتيوب.');
+      }
+
+      loader.style.display = 'block';
+      document.getElementById('submitBtn').disabled = true;
+
+      try {
+        const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.detail || 'فشل تحليل الفيديو');
+        renderResults(json);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        loader.style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+      }
+    });
+
+    // وضع التجربة السريعة (Demo Mode)
+    document.getElementById('demoBtn').addEventListener('click', () => {
+      hideError();
+      const hasLocalFile = videoFileInput.files.length > 0;
+      const demoVideoUrl = hasLocalFile
+        ? URL.createObjectURL(videoFileInput.files[0])
+        : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+
+      renderResults({
+        source_type: 'local',
+        video_url: demoVideoUrl,
+        exported_video_url: null,
+        analysis: {
+          video_title: 'عرض توضيحي: كيف يبدأ الفيديو بهوك خاطف للأنظار ثم يتلخص؟',
+          hook_caption: 'توقف! هذه اللحظة هي التي تُبقي 90% من المشاهدين حتى النهاية!',
+          hook_reason: 'تم اختيار هذا المشهد لأنه يحتوي على أعلى ذروة بصرية وحركة سريعة تجذب العين فوراً.',
+          hook_start_seconds: 5,
+          hook_end_seconds: 10,
+          overall_summary: 'في هذا العرض التجريبي، قفز المشغل تلقائياً إلى الثانية 00:05 لعرض مشهد الهوك مع العنوان الترويجي، ثم سينتقل تلقائياً إلى مشاهد التلخيص المرتبة لتقديم الفكرة في ثوانٍ معدودة.',
+          key_clips: [
+            { start_seconds: 0, end_seconds: 4, title: 'مقدمة المشهد التأسيسية', description: 'توضيح الفكرة الأساسية وبداية الحدث.' },
+            { start_seconds: 10, end_seconds: 15, title: 'النقطة المحورية والخلاصة', description: 'استعراض النتيجة النهائية وملخص الرسالة.' }
+          ]
+        }
+      });
+    });
+  </script>
+</body>
+</html>
