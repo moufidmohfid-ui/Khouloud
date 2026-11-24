@@ -1,0 +1,96 @@
+let currentVideoId = '';
+    const loaderStatus = document.getElementById('loaderStatus');
+    const exportBtn = document.getElementById('exportBtn');
+
+    // داخل دالة renderResults أضف هذا السطر بدل إظهار downloadBtn مباشرة:
+    // currentVideoId = data.video_id || '';
+    // exportBtn.style.display = (data.source_type === 'local' && currentVideoId) ? 'inline-flex' : 'none';
+    // downloadBtn.style.display = 'none';
+
+    exportBtn.addEventListener('click', async () => {
+      if (!currentAnalysis || !currentVideoId) return;
+      exportBtn.disabled = true;
+      exportBtn.textContent = '⏳ جاري القص والدمج...';
+      try {
+        const res = await fetch('/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            video_id: currentVideoId,
+            hook_start_seconds: currentAnalysis.hook_start_seconds,
+            hook_end_seconds: currentAnalysis.hook_end_seconds,
+            key_clips: currentAnalysis.key_clips
+          })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.detail || 'فشل التصدير');
+        downloadBtn.href = json.exported_video_url;
+        downloadBtn.style.display = 'inline-flex';
+        exportBtn.style.display = 'none';
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = '🎬 تجهيز ملف MP4 للتحميل';
+      }
+    });
+
+    analyzeForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      hideError();
+
+      const formData = new FormData();
+      if (videoFileInput.files.length > 0) {
+        formData.append('file', videoFileInput.files[0]);
+      }
+      const ytUrl = document.getElementById('youtubeUrl').value.trim();
+      if (ytUrl) formData.append('youtube_url', ytUrl);
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (apiKey) formData.append('api_key', apiKey);
+
+      if (!videoFileInput.files.length && !ytUrl) {
+        return showError('يرجى رفع ملف فيديو أو إدخال رابط يوتيوب.');
+      }
+
+      loader.style.display = 'block';
+      loaderStatus.textContent = 'جاري الرفع: 0%...';
+      document.getElementById('submitBtn').disabled = true;
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/analyze', true);
+
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          const pct = Math.round((ev.loaded / ev.total) * 100);
+          loaderStatus.textContent = pct < 100
+            ? `جاري رفع الفيديو: ${pct}%`
+            : '✅ اكتمل الرفع! الذكاء الاصطناعي يشاهد الفيديو ويستخرج الهوك...';
+        }
+      };
+
+      xhr.onload = () => {
+        loader.style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+        try {
+          const json = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            currentVideoId = json.video_id || '';
+            renderResults(json);
+            exportBtn.style.display = (json.source_type === 'local' && currentVideoId) ? 'inline-flex' : 'none';
+            downloadBtn.style.display = 'none';
+          } else {
+            showError(json.detail || 'فشل تحليل الفيديو');
+          }
+        } catch {
+          showError('انتهت مهلة السيرفر أو حجم الفيديو كبير جداً على الخطة المجانية.');
+        }
+      };
+
+      xhr.onerror = () => {
+        loader.style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+        showError('انقطع الاتصال بالسيرفر أثناء الرفع.');
+      };
+
+      xhr.send(formData);
+    });
